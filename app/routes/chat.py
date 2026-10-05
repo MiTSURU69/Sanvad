@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..config import settings
-from ..services import llm, llm_stream
+from ..services import llm, llm_stream, telegram
 from ..services.prompts import FALLBACK, build_system_prompt
 from ..services.retrieval import retrieve
 from ..services.tenants import get_tenant, log_unanswered
@@ -147,6 +147,7 @@ def _prepare(req: ChatRequest, request: Request):
     # Relevance gate: weak retrieval => no LLM call, no hallucination
     if not hits or best < _threshold(tenant):
         log_unanswered(tenant["id"], req.message, best)
+        telegram.alert_unanswered(tenant, req.message, best)
         return tenant, lang, None, hits
 
     context = "\n\n".join(f"[{i+1}] {h['content']}" for i, h in enumerate(hits))
@@ -173,6 +174,7 @@ async def chat(req: ChatRequest, request: Request):
         answer = await llm.generate(messages)
     except Exception:
         log.exception("LLM call failed")
+        telegram.alert_llm_failure(tenant, req.message)
         raise HTTPException(503, "The assistant is busy, please try again")
     return ChatResponse(answer=answer, answered=True,
                         sources=[h["metadata"].get("source", "") for h in hits[:3]])
@@ -201,6 +203,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                 yield _ev({"t": "delta", "text": piece})
         except Exception:
             log.exception("LLM stream failed")
+            telegram.alert_llm_failure(tenant, req.message)
             yield _ev({"t": "error"})
             return
         yield _ev({"t": "done", "answered": True, "escalation_url": None})
