@@ -101,3 +101,49 @@ def test_empty_tenant_rejected(setup):
     from app.services.retrieval import retrieve
     with pytest.raises(ValueError):
         retrieve("", "anything")
+
+
+# --- Origin enforcement (Milestone 3) ---
+
+ALLOWED = ["https://shop.example.com", "https://www.shop.example.com/"]
+
+
+@pytest.mark.parametrize("origin,expected", [
+    ("https://shop.example.com", True),
+    ("https://SHOP.example.com", True),
+    ("https://shop.example.com/", True),
+    ("https://www.shop.example.com", True),
+    ("https://evil.com", False),
+    ("https://shop.example.com.evil.com", False),
+    ("http://shop.example.com", False),
+    ("https://sub.shop.example.com", False),
+    ("null", False),
+    (None, True),  # no Origin header: curl / server-to-server
+    ("", True),
+])
+def test_origin_allowed_with_list(origin, expected):
+    from app.routes.chat import _origin_allowed
+    assert _origin_allowed({"allowed_origins": ALLOWED}, origin) is expected
+
+
+@pytest.mark.parametrize("allowed", [None, []])
+def test_origin_allowed_when_no_list_configured(allowed):
+    from app.routes.chat import _origin_allowed
+    assert _origin_allowed({"allowed_origins": allowed}, "https://anything.com") is True
+
+
+@pytest.mark.parametrize("path", ["/chat", "/chat/stream"])
+def test_routes_block_disallowed_origin(setup, monkeypatch, path):
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.routes import chat
+
+    fake = {"id": "test_a", "name": "test_a", "default_language": "en",
+            "allowed_origins": ["https://shop.example.com"]}
+    monkeypatch.setattr(chat, "get_tenant", lambda tid: fake)
+
+    client = TestClient(app)
+    r = client.post(path, json={"tenant_id": "test_a", "message": "refund policy"},
+                    headers={"Origin": "https://evil.com"})
+    assert r.status_code == 403

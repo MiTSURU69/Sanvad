@@ -91,6 +91,19 @@
     return d;
   }
 
+  function addLink(url) {
+    if (!/^https:\/\/wa\.me\//.test(url)) return;
+    var d = document.createElement("div");
+    d.className = "m note";
+    var a = document.createElement("a");
+    a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.style.color = color;
+    a.textContent = "Talk to our team on WhatsApp";
+    d.appendChild(a);
+    msgs.appendChild(d);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
   add(greeting, "bot");
 
   $("fab").onclick = function () {
@@ -106,25 +119,58 @@
     add(text, "user");
     var typing = add("Typing...", "note");
     try {
-      var res = await fetch(api + "/chat", {
+      var res = await fetch(api + "/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tenant_id: tenant, message: text, history: history.slice(-6) })
       });
-      typing.remove();
-      if (res.status === 404) { add("This chat is not available right now.", "note"); }
-      else if (res.status === 403) { add("This website is not allowed to use this chat.", "note"); }
-      else if (res.status === 429) { add("Too many messages. Please wait a moment.", "note"); }
-      else if (res.status === 503) { add("The assistant is busy right now. Please try again in a moment.", "note"); }
-      else if (!res.ok) { add("Something went wrong. Please try again.", "note"); }
-      else {
-        var data = await res.json();
-        add(data.answer, "bot");
-        history.push({ role: "user", content: text });
-        history.push({ role: "assistant", content: data.answer.slice(0, 2000) });
+      if (!res.ok) {
+        typing.remove(); typing = null;
+        if (res.status === 404) add("This chat is not available right now.", "note");
+        else if (res.status === 403) add("This website is not allowed to use this chat.", "note");
+        else if (res.status === 429) add("Too many messages. Please wait a moment.", "note");
+        else if (res.status === 503) add("The assistant is busy right now. Please try again in a moment.", "note");
+        else add("Something went wrong. Please try again.", "note");
+      } else {
+        var bot = null, full = "", escalation = null, failed = false;
+        var handle = function (line) {
+          if (!line.trim()) return;
+          var ev = JSON.parse(line);
+          if (ev.t === "delta") {
+            if (typing) { typing.remove(); typing = null; }
+            if (!bot) bot = add("", "bot");
+            full += ev.text;
+            bot.textContent = "";
+            fmt(bot, full);
+            msgs.scrollTop = msgs.scrollHeight;
+          } else if (ev.t === "done") {
+            escalation = ev.escalation_url;
+          } else if (ev.t === "error") {
+            failed = true;
+          }
+        };
+        var reader = res.body.getReader();
+        var dec = new TextDecoder();
+        var buf = "";
+        while (true) {
+          var r = await reader.read();
+          if (r.done) break;
+          buf += dec.decode(r.value, { stream: true });
+          var lines = buf.split("\n");
+          buf = lines.pop();
+          lines.forEach(handle);
+        }
+        if (buf.trim()) handle(buf);
+        if (typing) { typing.remove(); typing = null; }
+        if (failed && !full) add("Something went wrong. Please try again.", "note");
+        if (full) {
+          history.push({ role: "user", content: text });
+          history.push({ role: "assistant", content: full.slice(0, 2000) });
+        }
+        if (escalation) addLink(escalation);
       }
     } catch (e) {
-      typing.remove();
+      if (typing) typing.remove();
       add("Could not reach the server. Please try again.", "note");
     }
     busy = false; send.disabled = false; inp.focus();
