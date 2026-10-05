@@ -50,7 +50,6 @@
   var history = [];
   var busy = false;
 
-  // Renders **bold** safely (no innerHTML, so answers can't inject HTML)
   function inline(parent, text) {
     text.split(/(\*\*[^*]+\*\*)/).forEach(function (part) {
       if (/^\*\*[^*]+\*\*$/.test(part)) {
@@ -63,7 +62,6 @@
     });
   }
 
-  // Renders lines starting with -, * or a bullet as a list; other lines as paragraphs
   function fmt(el, text) {
     var list = null;
     text.split("\n").forEach(function (line) {
@@ -118,6 +116,7 @@
     busy = true; send.disabled = true; inp.value = "";
     add(text, "user");
     var typing = add("Typing...", "note");
+    var timer = null;
     try {
       var res = await fetch(api + "/chat/stream", {
         method: "POST",
@@ -132,7 +131,16 @@
         else if (res.status === 503) add("The assistant is busy right now. Please try again in a moment.", "note");
         else add("Something went wrong. Please try again.", "note");
       } else {
-        var bot = null, full = "", escalation = null, failed = false;
+        var bot = null, full = "", shown = 0, escalation = null, failed = false;
+
+        timer = setInterval(function () {
+          if (!bot || shown >= full.length) return;
+          shown += Math.max(2, Math.ceil((full.length - shown) / 40));
+          bot.textContent = "";
+          fmt(bot, full.slice(0, shown));
+          msgs.scrollTop = msgs.scrollHeight;
+        }, 20);
+
         var handle = function (line) {
           if (!line.trim()) return;
           var ev = JSON.parse(line);
@@ -140,15 +148,13 @@
             if (typing) { typing.remove(); typing = null; }
             if (!bot) bot = add("", "bot");
             full += ev.text;
-            bot.textContent = "";
-            fmt(bot, full);
-            msgs.scrollTop = msgs.scrollHeight;
           } else if (ev.t === "done") {
             escalation = ev.escalation_url;
           } else if (ev.t === "error") {
             failed = true;
           }
         };
+
         var reader = res.body.getReader();
         var dec = new TextDecoder();
         var buf = "";
@@ -161,6 +167,12 @@
           lines.forEach(handle);
         }
         if (buf.trim()) handle(buf);
+
+        while (shown < full.length) {
+          await new Promise(function (ok) { setTimeout(ok, 20); });
+        }
+        clearInterval(timer); timer = null;
+
         if (typing) { typing.remove(); typing = null; }
         if (failed && !full) add("Something went wrong. Please try again.", "note");
         if (full) {
@@ -170,6 +182,7 @@
         if (escalation) addLink(escalation);
       }
     } catch (e) {
+      if (timer) clearInterval(timer);
       if (typing) typing.remove();
       add("Could not reach the server. Please try again.", "note");
     }
