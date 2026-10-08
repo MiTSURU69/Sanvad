@@ -24,7 +24,7 @@ create table if not exists chunks (
   tenant_id text not null references tenants(id) on delete cascade,
   document_id uuid references documents(id) on delete cascade,
   content text not null,
-  embedding vector(384) not null,
+  embedding vector(768) not null,
   metadata jsonb not null default '{}'
 );
 create index if not exists chunks_tenant_idx on chunks(tenant_id);

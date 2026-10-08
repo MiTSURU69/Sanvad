@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     embedding_model: str = "intfloat/multilingual-e5-small"
     relevance_threshold: float = 0.80
     top_k: int = 5
+    gemini_api_key: str = ""
     
     # Correctly grouped inside the class definition
     telegram_bot_token: str = ""
