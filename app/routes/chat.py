@@ -97,6 +97,12 @@ def _lang_note(lang: str) -> str:
     return ""
 
 
+# --- Reply formatting ---
+_STYLE_NOTE = (
+    "\n\nFORMAT: Reply in plain conversational text. Do not use tables, headings or horizontal rules. "
+    "For lists, put each item on its own line starting with '- '. Keep it concise."
+)
+
 # --- Model-side "I can't answer this" detection ---
 NO_ANSWER_TAG = "[[NO_ANSWER]]"
 _DECLINE_NOTE = (
@@ -165,7 +171,7 @@ def _prepare(req: ChatRequest, request: Request):
     messages.append({
         "role": "user",
         "content": (f"CONTEXT:\n<<<\n{context}\n>>>\n\nUSER QUESTION:\n{req.message}"
-                    f"{_lang_note(lang)}{_DECLINE_NOTE}"),
+                    f"{_lang_note(lang)}{_STYLE_NOTE}{_DECLINE_NOTE}"),
     })
     return tenant, lang, messages, hits
 

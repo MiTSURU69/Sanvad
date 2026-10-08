@@ -64,7 +64,19 @@
 
   function fmt(el, text) {
     var list = null;
-    text.split("\n").forEach(function (line) {
+    var isSep = function (s) { return /^\s*\|[\s|:-]*-[\s|:-]*\|?\s*$/.test(s || ""); };
+    text.split("\n").forEach(function (line, i, arr) {
+      var t = line.match(/^\s*\|(.+)\|?\s*$/);
+      if (t) {
+        if (isSep(line)) return;          // the |---|---| row
+        if (isSep(arr[i + 1])) return;    // header row of a table
+        var cells = t[1].split("|").map(function (c) { return c.trim(); }).filter(Boolean);
+        if (!list) { list = document.createElement("ul"); el.appendChild(list); }
+        var tli = document.createElement("li");
+        inline(tli, cells.join(" - "));
+        list.appendChild(tli);
+        return;
+      }
       var m = line.match(/^\s*[-*\u2022]\s+(.*)$/);
       if (m) {
         if (!list) { list = document.createElement("ul"); el.appendChild(list); }
