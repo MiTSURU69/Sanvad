@@ -100,3 +100,17 @@ def alert_llm_failure(tenant: dict, question: str) -> None:
         f"<i>{_now()} | {html.escape(tenant['id'])}</i>"
     )
     notify("llm_failure", tenant["id"], text)
+
+    
+
+def alert_model_declined(tenant: dict, question: str, score) -> None:
+    s = f"{score:.2f}" if score is not None else "n/a"
+    text = (
+        f"A customer on <b>{_shop(tenant)}</b> asked something the assistant couldn't answer from the knowledge base:\n\n"
+        f"<blockquote>{_clean(question)}</blockquote>\n"
+        f"The search found loosely related content (score {s}), but it didn't contain the answer, "
+        f"so the assistant offered to connect them with your team.\n\n"
+        f"This is likely a real customer question, so it's worth adding the answer to the knowledge base.\n\n"
+        f"<i>{_now()} | {html.escape(tenant['id'])}</i>"
+    )
+    notify("model_declined", tenant["id"], text)

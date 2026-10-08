@@ -97,6 +97,15 @@ def _lang_note(lang: str) -> str:
     return ""
 
 
+# --- Model-side "I can't answer this" detection ---
+NO_ANSWER_TAG = "[[NO_ANSWER]]"
+_DECLINE_NOTE = (
+    "\n\nIf the CONTEXT does not contain the answer to the USER QUESTION, begin your reply with "
+    f"exactly {NO_ANSWER_TAG} and then politely say you don't have that information and offer to "
+    "connect them with the team. Otherwise answer normally and never write that tag."
+)
+
+
 def _threshold(tenant: dict) -> float:
     t = tenant.get("relevance_threshold")
     return float(t) if t is not None else settings.relevance_threshold
@@ -155,7 +164,8 @@ def _prepare(req: ChatRequest, request: Request):
     messages += [t.model_dump() for t in req.history[-4:]]
     messages.append({
         "role": "user",
-        "content": f"CONTEXT:\n<<<\n{context}\n>>>\n\nUSER QUESTION:\n{req.message}{_lang_note(lang)}",
+        "content": (f"CONTEXT:\n<<<\n{context}\n>>>\n\nUSER QUESTION:\n{req.message}"
+                    f"{_lang_note(lang)}{_DECLINE_NOTE}"),
     })
     return tenant, lang, messages, hits
 
@@ -163,6 +173,15 @@ def _prepare(req: ChatRequest, request: Request):
 def _declined(tenant: dict, lang: str, question: str) -> ChatResponse:
     return ChatResponse(answer=_fallback(tenant, lang), answered=False,
                         escalation_url=_escalation_url(tenant, question))
+
+
+def _record_model_decline(tenant: dict, question: str, hits: list) -> None:
+    best = hits[0]["score"] if hits else None
+    try:
+        log_unanswered(tenant["id"], question, best)
+        telegram.alert_model_declined(tenant, question, best)
+    except Exception:
+        log.exception("Could not record declined answer")
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -176,6 +195,14 @@ async def chat(req: ChatRequest, request: Request):
         log.exception("LLM call failed")
         telegram.alert_llm_failure(tenant, req.message)
         raise HTTPException(503, "The assistant is busy, please try again")
+
+    stripped = answer.lstrip()
+    if stripped.startswith(NO_ANSWER_TAG):
+        text = stripped[len(NO_ANSWER_TAG):].lstrip() or _fallback(tenant, lang)
+        _record_model_decline(tenant, req.message, hits)
+        return ChatResponse(answer=text, answered=False,
+                            escalation_url=_escalation_url(tenant, req.message))
+
     return ChatResponse(answer=answer, answered=True,
                         sources=[h["metadata"].get("source", "") for h in hits[:3]])
 
@@ -198,15 +225,49 @@ async def chat_stream(req: ChatRequest, request: Request):
         return StreamingResponse(declined(), media_type="application/x-ndjson")
 
     async def gen():
+        buf = ""
+        decided = False   # have we seen enough to know if the reply starts with the tag?
+        declined = False
+        sent = False
         try:
             async for piece in llm_stream.stream(messages):
-                yield _ev({"t": "delta", "text": piece})
+                if decided:
+                    sent = True
+                    yield _ev({"t": "delta", "text": piece})
+                    continue
+                buf += piece
+                head = buf.lstrip()
+                if len(head) < len(NO_ANSWER_TAG) and NO_ANSWER_TAG.startswith(head):
+                    continue  # could still turn into the tag, keep buffering
+                decided = True
+                if head.startswith(NO_ANSWER_TAG):
+                    declined = True
+                    head = head[len(NO_ANSWER_TAG):].lstrip()
+                if head:
+                    sent = True
+                    yield _ev({"t": "delta", "text": head})
+            if not decided and buf:
+                head = buf.lstrip()
+                if head.startswith(NO_ANSWER_TAG):
+                    declined = True
+                    head = head[len(NO_ANSWER_TAG):].lstrip()
+                if head:
+                    sent = True
+                    yield _ev({"t": "delta", "text": head})
         except Exception:
             log.exception("LLM stream failed")
             telegram.alert_llm_failure(tenant, req.message)
             yield _ev({"t": "error"})
             return
-        yield _ev({"t": "done", "answered": True, "escalation_url": None})
+
+        if declined:
+            if not sent:
+                yield _ev({"t": "delta", "text": _fallback(tenant, lang)})
+            _record_model_decline(tenant, req.message, hits)
+            yield _ev({"t": "done", "answered": False,
+                       "escalation_url": _escalation_url(tenant, req.message)})
+        else:
+            yield _ev({"t": "done", "answered": True, "escalation_url": None})
 
     return StreamingResponse(gen(), media_type="application/x-ndjson",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
