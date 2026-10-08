@@ -17,7 +17,3 @@ Web Development runs for 12 weeks and costs Rs 7,999. It covers HTML, CSS, JavaS
 ## Spoken English course
 Questions: Do you have an English course? / spoken english course ki fees kya hai? / english bolna seekhna hai
 Spoken English for Professionals runs for 6 weeks and costs Rs 2,999. It focuses on speaking practice, interviews and workplace conversations.
-
-## Certificates
-Questions: Do I get a certificate? / certificate milega kya? / how do I get my certificate?
-Yes. You receive a completion certificate after finishing all modules and scoring at least 60 percent on the final quiz. It appears in your dashboard as a downloadable PDF within 48 hours.
