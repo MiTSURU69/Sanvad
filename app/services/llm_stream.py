@@ -12,7 +12,7 @@ async def stream(messages):
     """Yield the reply text piece by piece from Groq. Retries once on 429."""
     headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
     body = {"model": settings.llm_model, "messages": messages,
-            "stream": True, "temperature": 0.2}
+            "stream": True, "temperature": 0.2, "max_tokens": 500}
     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=60.0)) as client:
         for attempt in (1, 2):
             async with client.stream("POST", URL, headers=headers, json=body) as r:

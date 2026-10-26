@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sanvad: a support bot that answers in Hindi, Hinglish and English</title>
+<meta name="description" content="Sanvad answers customer questions in the customer's own language, using only the information a business has given it.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%231B2F7A'/%3E%3Crect x='3' y='3' width='26' height='26' rx='2' fill='none' stroke='%23FFC21A' stroke-width='2'/%3E%3Ctext x='16' y='22' font-size='16' font-family='sans-serif' font-weight='700' text-anchor='middle' fill='%23FFC21A'%3E%E0%A4%B8%E0%A4%82%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;600;700&family=Yatra+One&display=swap" rel="stylesheet">
+<noscript><style>.shutter{display:none}</style></noscript>
+<style>
+:root{
+  --paper:#E8EDF7;
+  --ink:#101733;
+  --neel:#1B2F7A;
+  --signal:#FFC21A;
+  --leaf:#17794F;
+  --brick:#B93A2B;
+  --white:#FAFBFE;
+  --rule:#B9C3DB;
+  --display:"Yatra One","Mukta","Noto Sans Devanagari",serif;
+  --text:"Mukta","Noto Sans Devanagari",system-ui,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--text);font-size:1.0625rem;line-height:1.65}
+a{color:var(--neel)}
+:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.wrap{max-width:72rem;margin:0 auto;padding:0 1.25rem}
+
+/* header */
+.top{display:flex;align-items:baseline;justify-content:space-between;gap:1.5rem;padding:1.25rem 0}
+.mark{font-family:var(--display);font-size:1.6rem;line-height:1;color:var(--neel);text-decoration:none}
+.mark span{font-size:1.15rem;margin-left:.5rem;color:var(--ink)}
+.top nav{display:flex;gap:1.75rem;font-weight:600}
+.top nav a{color:var(--ink);text-decoration:none;padding:.25rem 0;border-bottom:2px solid transparent}
+.top nav a:hover{border-bottom-color:var(--neel)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:3.5rem;align-items:start;padding:2.5rem 0 5rem}
+.hero h1{font-family:var(--display);font-weight:400;font-size:clamp(2.2rem,4.6vw,3.6rem);line-height:1.22;margin:0 0 1.25rem;color:var(--neel)}
+.lede{margin:0 0 2rem;max-width:34rem}
+.langs{margin:0;border-top:1px solid var(--rule)}
+.langs div{display:grid;grid-template-columns:6.5rem 1fr;gap:1rem;padding:.7rem 0;border-bottom:1px solid var(--rule)}
+.langs dt{font-weight:700;color:var(--neel)}
+.langs dd{margin:0}
+
+/* demo */
+.demo{min-width:0}
+.signs{display:flex;gap:.5rem;margin:0 0 .5rem;padding:0}
+.sign{flex:1 1 0;min-width:0;appearance:none;border:2px solid var(--neel);background:var(--neel);color:var(--white);padding:.55rem .6rem .6rem;text-align:left;font:inherit;line-height:1.25;cursor:pointer;border-radius:2px 2px 0 0}
+.sign b{display:block;font-family:var(--display);font-weight:400;font-size:1.05rem}
+.sign small{display:block;font-size:.85rem;opacity:.85}
+.sign[aria-selected="true"]{background:var(--signal);border-color:var(--signal);color:var(--neel);cursor:default}
+.sign:not([aria-selected="true"]):hover{background:#27409b}
+.sign:focus-visible{outline-color:var(--ink)}
+.board{border:2px solid var(--neel);background:var(--white);border-radius:0 0 6px 6px;overflow:hidden}
+.stage{position:relative;height:30rem;overflow:hidden}
+.log{height:100%;overflow-y:auto;padding:1.1rem 1.1rem .5rem;display:flex;flex-direction:column;gap:.8rem}
+.msg{max-width:86%;padding:.6rem .85rem;overflow-wrap:anywhere}
+.msg p{margin:0}
+.msg p+p,.msg p+ul,.msg ul+p{margin-top:.5rem}
+.msg ul{margin:0;padding-left:1.15rem}
+.msg.user{align-self:flex-end;background:var(--neel);color:var(--white);border-radius:14px 14px 2px 14px;white-space:pre-wrap}
+.msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--rule);border-left:5px solid var(--rule);border-radius:2px 10px 10px 2px}
+.msg.bot.answered{border-left-color:var(--leaf)}
+.msg.bot a.handoff{display:inline-block;margin-top:.6rem;padding:.45rem .8rem;background:var(--neel);color:var(--white);text-decoration:none;font-weight:600;border-radius:2px}
+.msg.bot a.handoff:hover{background:#27409b}
+.sys{align-self:center;font-size:.92rem;color:#4a5578;text-align:center;max-width:90%}
+.shutter{position:absolute;inset:0;z-index:2;pointer-events:none;transform:translateY(-100%);transition:transform .75s cubic-bezier(.2,.7,.2,1);
+  background:repeating-linear-gradient(180deg,#2a3f94 0 9px,var(--neel) 9px 12px);border-bottom:10px solid var(--signal)}
+.shutter.down{transform:translateY(0);transition-duration:.3s}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;padding:.6rem 1.1rem 0}
+.chip{appearance:none;font:inherit;font-size:.95rem;line-height:1.3;padding:.4rem .75rem;background:#fff;color:var(--neel);border:1.5px solid var(--neel);border-radius:999px;cursor:pointer;text-align:left}
+.chip:hover:not(:disabled){background:var(--neel);color:var(--white)}
+.chip.outside{border-style:dashed}
+.chip:disabled,.send:disabled{opacity:.5;cursor:default}
+.hint{margin:0;padding:.5rem 1.1rem 0;font-size:.9rem;color:#4a5578}
+form.ask{display:flex;gap:.5rem;padding:.75rem 1.1rem 1.1rem}
+form.ask input{flex:1;min-width:0;font:inherit;padding:.6rem .8rem;border:2px solid var(--neel);border-radius:2px;background:#fff;color:var(--ink)}
+.send{appearance:none;font:inherit;font-weight:700;padding:0 1.2rem;min-height:2.75rem;background:var(--signal);color:var(--neel);border:2px solid var(--signal);border-radius:2px;cursor:pointer}
+.send:hover:not(:disabled){background:#ffd24d;border-color:#ffd24d}
+.fine{margin:.75rem 0 0;font-size:.9rem;color:#4a5578;max-width:40rem}
+
+/* sections */
+section.band{padding:4.5rem 0;border-top:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);gap:1rem 4rem;align-items:start}
+section.band h2{font-family:var(--display);font-weight:400;font-size:clamp(1.7rem,3vw,2.3rem);line-height:1.25;margin:0 0 1.5rem;color:var(--neel);max-width:30rem;position:sticky;top:1.5rem}
+.prose{max-width:40rem}
+.prose p{margin:0 0 1rem}
+.states{margin:2rem 0 0;max-width:46rem}
+.states div{display:grid;grid-template-columns:14rem 1fr;gap:1rem 2rem;padding:1.15rem 0 1.15rem 1.25rem;border-top:1px solid var(--rule);border-left:6px solid var(--c)}
+.states div:last-child{border-bottom:1px solid var(--rule)}
+.states dt{font-weight:700}
+.states dd{margin:0}
+.codebox{position:relative;max-width:46rem;background:var(--ink);color:var(--paper);border-radius:4px;padding:1.1rem 1.25rem;margin:1.5rem 0}
+.codebox pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:0.95rem/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.copy{margin-top:1rem;appearance:none;font:inherit;font-weight:700;padding:.5rem 1rem;background:var(--signal);color:var(--neel);border:0;border-radius:2px;cursor:pointer;min-height:2.5rem}
+.codebox :focus-visible{outline-color:var(--signal)}
+footer{border-top:1px solid var(--rule);padding:2rem 0 3rem;font-size:.95rem;color:#4a5578}
+
+/* people */
+.scene{position:relative;margin-top:2.25rem;height:16.5rem;border-top:1px solid var(--rule)}
+.scene .who{position:absolute;bottom:0;width:9rem}
+.scene .cust{left:6%}
+.scene .keeper{right:6%}
+.scene .counter{position:absolute;left:0;right:0;bottom:0;height:1.1rem;background:var(--neel);border-top:5px solid var(--signal)}
+.say{position:absolute;max-width:11.5rem;padding:.4rem .7rem;font-size:.95rem;line-height:1.35;background:#fff;border:1.5px solid var(--neel);opacity:0;animation:say 12s infinite}
+.say.c{top:.9rem;left:0;border-radius:12px 12px 12px 2px}
+.say.k{top:2.6rem;right:0;border-radius:12px 12px 2px 12px;border-color:var(--leaf)}
+@keyframes say{0%{opacity:0;transform:translateY(6px)}4%,28%{opacity:1;transform:none}33%,100%{opacity:0}}
+.person{display:block;width:100%;height:auto;overflow:visible}
+.person .bob{animation:bob 3.2s ease-in-out infinite;transform-origin:50% 100%}
+.person .eye,.person .mouth{transform-box:fill-box;transform-origin:center}
+.person .eye{animation:blink 4.5s infinite}
+.scene .mouth,.agent.talking .mouth{animation:talk .4s ease-in-out infinite alternate}
+.mood.m1{opacity:0}
+.scene .m0{animation:m0 4s infinite}
+.scene .m1{animation:m1 4s infinite}
+@keyframes m0{0%,52%{opacity:1}56%,100%{opacity:0}}
+@keyframes m1{0%,52%{opacity:0}56%,100%{opacity:1}}
+@keyframes bob{50%{transform:translateY(-3px)}}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+@keyframes talk{to{transform:scaleY(1.9)}}
+.agent{display:flex;align-items:center;gap:.7rem;padding:.5rem 1.1rem;background:var(--paper);border-bottom:1px solid var(--rule)}
+.agent .av{width:3.1rem;height:3.1rem;border-radius:50%;background:var(--signal);overflow:hidden;flex:none}
+.agent b{display:block;font-family:var(--display);font-weight:400;line-height:1.2;color:var(--neel)}
+.agent small{display:block;font-size:.85rem;line-height:1.2;color:#4a5578}
+.dots{display:inline-flex;gap:.2rem;margin-left:.35rem;vertical-align:middle}
+.dots i{width:.35rem;height:.35rem;border-radius:50%;background:var(--neel);animation:hop 1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}
+.dots i:nth-child(3){animation-delay:.3s}
+@keyframes hop{0%,60%,100%{transform:none;opacity:.4}30%{transform:translateY(-4px);opacity:1}}
+.msg{animation:pop .25s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}}
+
+/* narrow screens */
+@media (max-width:960px){
+  .hero{grid-template-columns:minmax(0,1fr);gap:2.5rem;padding-bottom:3.5rem}
+  section.band{grid-template-columns:minmax(0,1fr)}
+  section.band h2{position:static}
+}
+@media (max-width:640px){
+  .top nav{display:none}
+  .stage{height:26rem}
+  .scene{height:15rem}
+  .scene .who{width:7.2rem}
+  .say{max-width:9.5rem;font-size:.85rem}
+  .sign b{font-size:.95rem}
+  .sign small{display:none}
+  .msg{max-width:94%}
+  .states div{grid-template-columns:1fr;gap:.25rem}
+  section.band{padding:3rem 0}
+}
+@media (prefers-reduced-motion:reduce){
+  .shutter,.shutter.down{transition:none}
+  .person *,.dots i,.msg{animation:none!important}
+  .say{animation:none}
+  .say.first{opacity:1}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="mark" href="#">Sanvad<span lang="hi">संवाद</span></a>
+    <nav aria-label="Page sections">
+      <a href="#try">Try it</a>
+      <a href="#answers">How it answers</a>
+      <a href="#embed">Add it to your site</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="try" aria-labelledby="headline">
+      <div>
+        <h1 id="headline" lang="hi">ग्राहक जिस भाषा में पूछें, जवाब उसी भाषा में मिले।</h1>
+        <p class="lede">Sanvad is a support bot for small businesses. It answers in Hindi, Hinglish or English, and only from the information you give it about your business.</p>
+        <dl class="langs">
+          <div><dt>Hindi</dt><dd lang="hi">रिफंड कितने दिन में मिलता है?</dd></div>
+          <div><dt>Hinglish</dt><dd>mera refund kab milega</dd></div>
+          <div><dt>English</dt><dd>How long do refunds take?</dd></div>
+        </dl>
+        <div class="scene" id="scene" aria-hidden="true"></div>
+      </div>
+
+      <div class="demo">
+        <div class="signs" role="tablist" aria-label="Choose a sample business">
+          <button class="sign" role="tab" id="tab-shop_001" data-id="shop_001" aria-selected="true" aria-controls="board"><b>ShopEasy</b><small>Online store</small></button>
+          <button class="sign" role="tab" id="tab-clinic_001" data-id="clinic_001" aria-selected="false" tabindex="-1" aria-controls="board"><b>SmileCare Clinic</b><small>Dental clinic</small></button>
+          <button class="sign" role="tab" id="tab-edu_001" data-id="edu_001" aria-selected="false" tabindex="-1" aria-controls="board"><b>LearnLoop</b><small>Online courses</small></button>
+        </div>
+        <div class="board" id="board" role="tabpanel">
+          <div class="agent" id="agent">
+            <span class="av" id="av"></span>
+            <div><b id="agentName">ShopEasy assistant</b><small id="agentState">Online</small></div>
+          </div>
+          <div class="stage">
+            <div class="log" id="log" role="log" aria-live="polite" aria-label="Conversation"></div>
+            <div class="shutter down" id="shutter" aria-hidden="true"></div>
+          </div>
+          <div class="chips" id="chips"></div>
+          <p class="hint">Try one, or type your own. The dashed question is outside what this business knows.</p>
+          <form class="ask" id="ask" autocomplete="off">
+            <input id="inp" type="text" maxlength="1000" placeholder="Type your question" aria-label="Your question">
+            <button class="send" id="send" type="submit">Send</button>
+          </form>
+        </div>
+        <p class="fine">These are sample businesses. Each answer comes from that business's sample information, nothing else.</p>
+      </div>
+    </section>
+
+    <section class="band" id="answers" aria-labelledby="h-answers">
+      <h2 id="h-answers">It would rather say "I don't know" than guess.</h2>
+      <div class="body">
+      <div class="prose">
+        <p>Every question goes through two checks. First, the question is compared with your documents, and a weak match never reaches the language model. Then the model is told to decline if the text it was given doesn't actually answer the question.</p>
+      </div>
+      <dl class="states">
+        <div style="--c:var(--leaf)">
+          <dt>It has the answer</dt>
+          <dd>It replies in the language the customer wrote in, using only the text from your documents.</dd>
+        </div>
+        <div style="--c:var(--brick)">
+          <dt>It doesn't have the answer</dt>
+          <dd>It says so plainly and logs the question, so you can see what customers ask that your documents don't cover. Alerts can also go to Telegram.</dd>
+        </div>
+        <div style="--c:var(--neel)">
+          <dt>The customer wants a person</dt>
+          <dd>If you've given it a WhatsApp number, it adds a link to your team with the customer's question already filled in.</dd>
+        </div>
+      </dl>
+      </div>
+    </section>
+
+    <section class="band" aria-labelledby="h-own">
+      <h2 id="h-own">Each business sees only its own information.</h2>
+      <div class="body">
+      <div class="prose">
+        <p>A question is searched against one business's documents and no one else's. ShopEasy's bot can't see SmileCare's fees or LearnLoop's courses, even if a customer asks for them directly.</p>
+        <p>Automated tests check this with questions in English, Hindi and Hinglish, and they must show zero leaks.</p>
+      </div>
+      </div>
+    </section>
+
+    <section class="band" id="embed" aria-labelledby="h-embed">
+      <h2 id="h-embed">Add it to your website with one line.</h2>
+      <div class="body">
+      <div class="prose">
+        <p>Paste this just before the closing <code>&lt;/body&gt;</code> tag of your page and replace the business id with yours. A chat button appears at the bottom right.</p>
+      </div>
+      <div class="codebox">
+        <pre id="snippet"></pre>
+        <button class="copy" id="copy" type="button">Copy snippet</button>
+      </div>
+      <div class="prose">
+        <p>Each business can be limited to its own website addresses, so nobody else can put your bot on their page.</p>
+      </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Sanvad (संवाद) is open source. <a href="https://github.com/MiTSURU69/Sanvad">See the code on GitHub</a>.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var TENANTS = {
+    shop_001: {
+      name: "ShopEasy",
+      greeting: "Namaste! Ask about orders, returns, shipping or payments.",
+      chips: ["mera refund kab milega", "Do you accept UPI?", "आज मौसम कैसा है?"]
+    },
+    clinic_001: {
+      name: "SmileCare Clinic",
+      greeting: "Namaste! Ask about appointments, timings, fees or reports.",
+      chips: ["clinic kab khulta hai", "doctor ki fees kitni hai", "I have a headache, what medicine should I take?"]
+    },
+    edu_001: {
+      name: "LearnLoop",
+      greeting: "Namaste! Ask about courses, refunds, certificates or doubts.",
+      chips: ["certificate kaise milega", "refund milega kya", "Write a poem about the moon"]
+    }
+  };
+
+  var params = new URLSearchParams(location.search);
+  var API = params.get("api") || (location.protocol === "file:" ? "http://localhost:8000" : "");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var log = document.getElementById("log");
+  var chipsEl = document.getElementById("chips");
+  var shutter = document.getElementById("shutter");
+  var form = document.getElementById("ask");
+  var inp = document.getElementById("inp");
+  var send = document.getElementById("send");
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".sign"));
+  var agent = document.getElementById("agent");
+  var agentState = document.getElementById("agentState");
+
+  var current = "shop_001";
+  var history = [];
+  var busy = false;
+
+  /* people: small animated figures built from static markup */
+  var INK = "#101733";
+  var BROWS = {
+    happy: "M38 44Q47 38 56 43M64 43Q73 38 82 44",
+    worried: "M38 46Q47 44 56 38M64 38Q73 44 82 46",
+    surprised: "M38 38Q47 31 56 37M64 37Q73 31 82 38",
+    think: "M38 45Q47 42 56 44M64 40Q73 34 82 41"
+  };
+  function mouthSVG(m) {
+    var st = ' stroke="' + INK + '" stroke-width="1.6" stroke-linejoin="round"';
+    if (m === "happy") return '<path class="mouth" d="M47 72Q60 93 73 72Q60 77 47 72Z" fill="#7a2a22"' + st + '/>';
+    if (m === "surprised") return '<ellipse class="mouth" cx="60" cy="80" rx="5" ry="7" fill="#7a2a22"' + st + '/>';
+    if (m === "worried") return '<path class="mouth" d="M50 84Q60 75 70 84" fill="none" stroke="' + INK + '" stroke-width="2.6" stroke-linecap="round"/>';
+    return '<path class="mouth" d="M50 80Q60 83 72 75" fill="none" stroke="' + INK + '" stroke-width="2.6" stroke-linecap="round"/>';
+  }
+  function moodSVG(m, st) {
+    return '<path d="' + BROWS[m] + '" fill="none" stroke="' + INK + '" stroke-width="3.2" stroke-linecap="round"/>' +
+      '<g transform="translate(0,' + (st ? 5 : 0) + ')">' + mouthSVG(m) + '</g>';
+  }
+  /* an illustrated character: look = {skin, shirt, hair, cut, topi, stache, glasses, bindi, mood} */
+  function personSVG(k, vb) {
+    var sk = ' stroke="' + INK + '" stroke-width="2" stroke-linejoin="round"';
+    var o = '<svg class="person" viewBox="' + (vb || "0 0 120 130") + '" aria-hidden="true"><g class="bob">';
+    if (k.cut === "long") o += '<path d="M28 58Q24 20 60 20Q96 20 92 58L98 114Q60 124 22 114Z" fill="' + k.hair + '"' + sk + '/>';
+    if (k.cut === "bun") o += '<circle cx="60" cy="18" r="12" fill="' + k.hair + '"' + sk + '/>';
+    if (k.topi) o += '<circle cx="31" cy="52" r="8" fill="' + k.hair + '"' + sk + '/><circle cx="89" cy="52" r="8" fill="' + k.hair + '"' + sk + '/>';
+    o += '<path d="M10 130Q10 98 40 93L60 104L80 93Q110 98 110 130Z" fill="' + k.shirt + '"' + sk + '/>' +
+      '<path d="M44 93L60 114L76 93Z" fill="' + k.skin + '"' + sk + '/>' +
+      '<circle cx="30" cy="60" r="6" fill="' + k.skin + '"' + sk + '/><circle cx="90" cy="60" r="6" fill="' + k.skin + '"' + sk + '/>' +
+      '<ellipse cx="60" cy="58" rx="30" ry="33" fill="' + k.skin + '"' + sk + '/>' +
+      '<ellipse cx="40" cy="70" rx="6" ry="4" fill="#f08a7a" opacity=".5"/><ellipse cx="80" cy="70" rx="6" ry="4" fill="#f08a7a" opacity=".5"/>' +
+      '<path d="M57 64Q55 70 61 70" fill="none" stroke="' + INK + '" stroke-width="1.8" stroke-linecap="round"/>';
+    if (k.topi) o += '<path d="M33 40L38 14Q60 4 82 14L87 40Q60 32 33 40Z" fill="#fff"' + sk + '/>';
+    else if (k.cut === "short") o += '<path d="M30 52Q26 18 58 17Q92 16 90 52Q82 36 64 34Q44 34 30 52Z" fill="' + k.hair + '"' + sk + '/>';
+    else if (k.cut) o += '<path d="M30 52Q28 22 60 22Q92 22 90 52Q80 36 60 36Q40 36 30 52Z" fill="' + k.hair + '"' + sk + '/>';
+    [47, 73].forEach(function (x) {
+      o += '<g class="eye"><ellipse cx="' + x + '" cy="56" rx="7" ry="8" fill="#fff" stroke="' + INK + '" stroke-width="1.6"/>' +
+        '<circle cx="' + (x < 60 ? x + 1.5 : x - 1.5) + '" cy="57" r="3.6" fill="' + INK + '"/>' +
+        '<circle cx="' + (x < 60 ? x + 2.4 : x - 0.6) + '" cy="55.6" r="1.1" fill="#fff"/></g>';
+    });
+    var ms = [].concat(k.mood);
+    if (ms.length > 1) ms.forEach(function (m, i) { o += '<g class="mood m' + i + '">' + moodSVG(m, k.stache) + '</g>'; });
+    else o += moodSVG(ms[0], k.stache);
+    if (k.stache) o += '<path d="M42 76Q50 66 60 72Q70 66 78 76Q70 80 60 77Q50 80 42 76Z" fill="' + k.hair + '" stroke="' + INK + '" stroke-width="1.5" stroke-linejoin="round"/>';
+    if (k.glasses) o += '<g fill="none" stroke="' + INK + '" stroke-width="2"><circle cx="47" cy="56" r="10"/><circle cx="73" cy="56" r="10"/><path d="M57 55Q60 52 63 55"/></g>';
+    if (k.bindi) o += '<circle cx="60" cy="44" r="2.4" fill="#c0392b"/>';
+    return o + '</g></svg>';
+  }
+  var LOOK = {
+    shop_001: { skin: "#D9A066", shirt: "#E9A23B", hair: "#2b1b14", topi: 1, stache: 1, glasses: 1, mood: "happy" },
+    clinic_001: { skin: "#EBB98E", shirt: "#3b8fa3", hair: "#241513", cut: "bun", glasses: 1, mood: "happy" },
+    edu_001: { skin: "#B9784D", shirt: "#B93A2B", hair: "#101733", cut: "short", mood: "think" }
+  };
+  var CUSTOMER = { skin: "#F0C29C", shirt: "#7b4fa3", hair: "#241513", cut: "long", bindi: 1, mood: ["worried", "happy"] };
+  var SCENE = [
+    ["रिफंड कब मिलेगा?", "5-7 दिन में, आपके पेमेंट मेथड पर।"],
+    ["mera refund kab milega", "5-7 din mein, original payment method pe."],
+    ["How long do refunds take?", "Within 5-7 business days."]
+  ];
+  (function () {
+    var html = '<div class="who cust">' + personSVG(CUSTOMER) + '</div>' +
+      '<div class="who keeper">' + personSVG(LOOK.shop_001) + '</div><div class="counter"></div>';
+    SCENE.forEach(function (p, i) {
+      var f = i ? "" : " first", l = i ? "" : ' lang="hi"';
+      html += '<div class="say c' + f + '"' + l + ' style="animation-delay:' + (i * 4) + 's">' + p[0] + '</div>';
+      html += '<div class="say k' + f + '"' + l + ' style="animation-delay:' + (i * 4 + 1.2) + 's">' + p[1] + '</div>';
+    });
+    document.getElementById("scene").innerHTML = html;
+  })();
+
+  function wait(ms) { return new Promise(function (ok) { setTimeout(ok, reduce ? 0 : ms); }); }
+  function scroll() { log.scrollTop = log.scrollHeight; }
+
+  /* Safe formatter: "- " lines become bullets, **x** becomes bold. No innerHTML. */
+  function inline(parent, text) {
+    text.split(/(\*\*[^*]+\*\*)/).forEach(function (part) {
+      if (/^\*\*[^*]+\*\*$/.test(part)) {
+        var s = document.createElement("strong");
+        s.textContent = part.slice(2, -2);
+        parent.appendChild(s);
+      } else if (part) {
+        parent.appendChild(document.createTextNode(part));
+      }
+    });
+  }
+  function fmt(el, text) {
+    el.textContent = "";
+    var list = null, para = null;
+    text.split("\n").forEach(function (line) {
+      var m = line.match(/^\s*[-•*]\s+(.*)$/);
+      if (m) {
+        para = null;
+        if (!list) { list = document.createElement("ul"); el.appendChild(list); }
+        var li = document.createElement("li");
+        inline(li, m[1]);
+        list.appendChild(li);
+      } else if (line.trim()) {
+        list = null;
+        if (!para) { para = document.createElement("p"); el.appendChild(para); }
+        else para.appendChild(document.createElement("br"));
+        inline(para, line.trim());
+      } else {
+        list = null; para = null;
+      }
+    });
+  }
+
+  function addUser(text) {
+    var d = document.createElement("div");
+    d.className = "msg user";
+    d.textContent = text;
+    log.appendChild(d); scroll();
+  }
+  function addBot(text) {
+    var d = document.createElement("div");
+    d.className = "msg bot";
+    fmt(d, text);
+    log.appendChild(d); scroll();
+    return d;
+  }
+  function addSys(text) {
+    var d = document.createElement("div");
+    d.className = "sys";
+    d.textContent = text;
+    log.appendChild(d); scroll();
+    return d;
+  }
+
+  function setBusy(b) {
+    busy = b;
+    agent.classList.toggle("talking", b);
+    agentState.textContent = b ? "Looking it up" : "Online";
+    send.disabled = b;
+    inp.disabled = b;
+    Array.prototype.forEach.call(chipsEl.children, function (c) { c.disabled = b; });
+  }
+
+  function renderTenant() {
+    var t = TENANTS[current];
+    log.textContent = "";
+    history = [];
+    addBot(t.greeting);
+    document.getElementById("av").innerHTML = personSVG(LOOK[current], "14 4 92 96");
+    document.getElementById("agentName").textContent = t.name + " assistant";
+    chipsEl.textContent = "";
+    t.chips.forEach(function (q, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip" + (i === t.chips.length - 1 ? " outside" : "");
+      b.textContent = q;
+      b.addEventListener("click", function () { ask(q); });
+      chipsEl.appendChild(b);
+    });
+    inp.placeholder = "Type your question";
+  }
+
+  async function choose(id, first) {
+    if (busy && !first) return;
+    current = id;
+    tabs.forEach(function (tab) {
+      var on = tab.dataset.id === id;
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      tab.tabIndex = on ? 0 : -1;
+    });
+    document.getElementById("board").setAttribute("aria-labelledby", "tab-" + id);
+    if (!first) { shutter.classList.add("down"); await wait(330); }
+    renderTenant();
+    await wait(first ? 350 : 80);
+    shutter.classList.remove("down");
+  }
+
+  tabs.forEach(function (tab, i) {
+    tab.addEventListener("click", function () {
+      if (tab.dataset.id !== current) choose(tab.dataset.id, false);
+    });
+    tab.addEventListener("keydown", function (e) {
+      var next = null;
+      if (e.key === "ArrowRight") next = tabs[(i + 1) % tabs.length];
+      if (e.key === "ArrowLeft") next = tabs[(i + tabs.length - 1) % tabs.length];
+      if (next) { e.preventDefault(); next.focus(); next.click(); }
+    });
+  });
+
+  async function ask(text) {
+    text = (text || "").trim();
+    if (!text || busy) return;
+    var tenant = current;
+    setBusy(true);
+    inp.value = "";
+    addUser(text);
+    var typing = addSys("Looking through " + TENANTS[tenant].name + "'s information");
+    var dots = document.createElement("span");
+    dots.className = "dots";
+    dots.innerHTML = "<i></i><i></i><i></i>";
+    typing.appendChild(dots);
+    var bot = null, full = "", escalation = null, answered = null, failed = false;
+
+    function handle(line) {
+      if (!line.trim()) return;
+      var ev;
+      try { ev = JSON.parse(line); } catch (e) { return; }
+      if (ev.t === "delta") {
+        if (typing) { typing.remove(); typing = null; }
+        if (!bot) bot = addBot("");
+        full += ev.text;
+        fmt(bot, full);
+        scroll();
+      } else if (ev.t === "done") {
+        answered = ev.answered;
+        escalation = ev.escalation_url;
+      } else if (ev.t === "error") {
+        failed = true;
+      }
+    }
+
+    try {
+      var res = await fetch(API + "/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenant, message: text, history: history.slice(-6) })
+      });
+      if (!res.ok) {
+        if (typing) { typing.remove(); typing = null; }
+        if (res.status === 429) addSys("Too many questions in a minute. Wait a moment, then ask again.");
+        else if (res.status === 403) addSys("This website isn't allowed to use this bot.");
+        else if (res.status === 404) addSys("This sample business isn't available right now.");
+        else if (res.status === 503) addSys("The assistant is busy. Try again in a moment.");
+        else addSys("Something went wrong. Try again.");
+      } else {
+        var reader = res.body.getReader();
+        var dec = new TextDecoder();
+        var buf = "";
+        while (true) {
+          var r = await reader.read();
+          if (r.done) break;
+          buf += dec.decode(r.value, { stream: true });
+          var lines = buf.split("\n");
+          buf = lines.pop();
+          lines.forEach(handle);
+        }
+        if (buf.trim()) handle(buf);
+
+        if (typing) { typing.remove(); typing = null; }
+        if (failed && !bot) {
+          addSys("Something went wrong. Try again.");
+        } else if (bot) {
+          if (answered) bot.classList.add("answered");
+          if (escalation) {
+            var a = document.createElement("a");
+            a.className = "handoff";
+            a.href = escalation;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.textContent = "Talk to the team on WhatsApp";
+            bot.appendChild(a);
+          }
+          scroll();
+        }
+        if (full && tenant === current) {
+          history.push({ role: "user", content: text });
+          history.push({ role: "assistant", content: full.slice(0, 2000) });
+        }
+      }
+    } catch (e) {
+      if (typing) typing.remove();
+      addSys("Couldn't reach the assistant. Try again in a moment.");
+    }
+    setBusy(false);
+    inp.focus({ preventScroll: true });
+  }
+
+  form.addEventListener("submit", function (e) { e.preventDefault(); ask(inp.value); });
+
+  /* embed snippet */
+  var host = location.protocol.indexOf("http") === 0 ? location.origin : "https://your-sanvad-host";
+  var snippet = '<script src="' + host + '/static/widget.js"\n        data-tenant="your_business_id"\n        data-title="Chat with us"><\/script>';
+  document.getElementById("snippet").textContent = snippet;
+  var copyBtn = document.getElementById("copy");
+  copyBtn.addEventListener("click", function () {
+    function done() {
+      copyBtn.textContent = "Snippet copied";
+      setTimeout(function () { copyBtn.textContent = "Copy snippet"; }, 1800);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(snippet).then(done, function () {});
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = snippet; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) {}
+      ta.remove();
+    }
+  });
+
+  choose("shop_001", true);
+})();
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .db import pool
@@ -21,10 +22,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Sanvad", version="0.1.0", lifespan=lifespan)
 # CORS stays open so browsers can send preflight requests; the per-tenant
-# allowed_origins check is enforced inside the /chat route.
+# allowed_origins check is enforced inside the chat routes.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(chat.router)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def home():
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")
