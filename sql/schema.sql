@@ -5,10 +5,13 @@ create table if not exists tenants (
   name text not null,
   vertical text not null default 'general',
   default_language text not null default 'en',       -- 'en' | 'hi'
-  allowed_origins text[] not null default '{}',      -- enforced in Milestone 4
+  allowed_origins text[] not null default '{}',      -- enforced in /chat; empty = any website
   escalation_contact text,
   extra_forbidden_topics text[] not null default '{}',
   status text not null default 'active',
+  relevance_threshold real,                          -- null = use RELEVANCE_THRESHOLD from .env
+  fallback_message text,                             -- null = default fallback text
+  extra_instructions text,                           -- extra business guidance added to the prompt
   created_at timestamptz not null default now()
 );
 
@@ -38,3 +41,9 @@ create table if not exists unanswered (
   best_score real,
   created_at timestamptz not null default now()
 );
+
+-- Upgrade path for databases created before the per-tenant settings existed.
+-- Safe to run repeatedly; does nothing on a fresh install.
+alter table tenants add column if not exists relevance_threshold real;
+alter table tenants add column if not exists fallback_message text;
+alter table tenants add column if not exists extra_instructions text;
